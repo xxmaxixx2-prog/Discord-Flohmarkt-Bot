@@ -119,10 +119,10 @@ def scrape_schlossfloh():
 # --- ZENTRALER ERINNERUNGS-CHECK ---
 def check_all_sources_and_notify():
   # Normaler Live-Betrieb:
-  today = datetime.now().date()
+  #today = datetime.now().date()
 
   # Test-Betrieb (Einkommentieren, um den 11.09.2026 zu simulieren):
-  # today = datetime(2026, 9, 11).date()
+  today = datetime(2026, 9, 11).date()
 
   print(f"🔎 Starte Prüfung für heute ({today})...", flush=True)
 
