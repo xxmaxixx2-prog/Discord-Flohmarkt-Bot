@@ -42,7 +42,7 @@ def send_discord_reminder(
   return res.status_code in [200, 204]
 
 
-# --- SCRAPER 1: Flohmaxx (HTML-Tabelle) ---
+# --- SCRAPER 1: Flohmaxx (mit Debug-Ausgaben) ---
 def scrape_flohmaxx():
   events = []
   url = "https://flohmaxx.de/flohmarkt/"
@@ -52,16 +52,16 @@ def scrape_flohmaxx():
     rows = soup.find_all("tr")
     current_year = datetime.now().year
 
+    print(f"🔍 [Debug] Tabellenzeilen gefunden: {len(rows)}", flush=True)
+
     for row in rows:
       text = row.get_text(separator=" ", strip=True)
       if "oldenburg" in text.lower():
         cols = row.find_all("td")
         if len(cols) >= 3:
-          date_raw = cols[0].get_text(strip=True)  # z.B. "Sa., 12.09."
-          location_raw = cols[1].get_text(
-              separator=" ", strip=True
-          )  # z.B. "OLDENBURG Freigelände Weser-Ems-Hallen"
-          time_raw = cols[2].get_text(strip=True)  # z.B. "08 bis 14 Uhr"
+          date_raw = cols[0].get_text(strip=True)
+          location_raw = cols[1].get_text(separator=" ", strip=True)
+          time_raw = cols[2].get_text(strip=True)
 
           date_match = re.search(r"(\d{2})\.(\d{2})\.", date_raw)
           if date_match:
@@ -72,7 +72,7 @@ def scrape_flohmaxx():
                 r"^OLDENBURG\s*", "", location_raw, flags=re.IGNORECASE
             )
 
-            events.append({
+            event = {
                 "id": f"flohmaxx_{event_date}_{clean_location}",
                 "title": f"Flohmarkt ({clean_location})",
                 "date": event_date,
@@ -80,10 +80,17 @@ def scrape_flohmaxx():
                 "time_str": time_raw,
                 "location": f"Oldenburg - {clean_location}",
                 "url": url,
-            })
+            }
+            events.append(event)
+            print(
+                f"🎯 [Debug] Event erkannt: {event['title']} am {event_date}",
+                flush=True,
+            )
+
   except Exception as e:
     print(f"❌ Fehler bei Flohmaxx: {e}", flush=True)
 
+  print(f"📊 [Debug] Flohmaxx Gesamt-Treffer: {len(events)}", flush=True)
   return events
 
 
