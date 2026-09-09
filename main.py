@@ -128,7 +128,72 @@ def scrape_schlossfloh():
   return events
 
 
+#def check_all_sources_and_notify():
+
 def check_all_sources_and_notify():
+  # Simuliere Freitag, den 11.09.2026
+  today = datetime(2026, 9, 11).date()
+
+  print(f"🔎 Starte Prüfung für Datum: {today}...", flush=True)
+
+  all_events = []
+  all_events.extend(scrape_flohmaxx())
+  all_events.extend(scrape_schlossfloh())
+
+  print(
+      f"📊 Geholte Events von Webseiten: {len(all_events)}", flush=True
+  )
+
+  # TEST-EVENT INJIZIEREN (um den Webhook sofort zu prüfen)
+  all_events.append({
+      "id": "test_flohmarkt_weser_ems",
+      "title": "Flohmarkt (Freigelände Weser-Ems-Hallen)",
+      "date": datetime(2026, 9, 12).date(),  # Event am 12.09. (Morgen aus Sicht des 11.09.)
+      "date_str": "Sa. 12.09.",
+      "time_str": "08 bis 14 Uhr",
+      "location": "Oldenburg - Freigelände Weser-Ems-Hallen",
+      "url": "https://flohmaxx.de/flohmarkt/",
+  })
+
+  for event in all_events:
+    event_id = event["id"]
+    days_until = (event["date"] - today).days
+
+    if event_id not in notified_stages:
+      notified_stages[event_id] = set()
+
+    stage_to_send = None
+    if days_until == 7:
+      stage_to_send = "1_week"
+    elif days_until == 1:
+      stage_to_send = "1_day"
+    elif days_until == 0:
+      stage_to_send = "today"
+
+    if (
+        stage_to_send
+        and stage_to_send not in notified_stages[event_id]
+    ):
+      success = send_discord_reminder(
+          stage_name=stage_to_send,
+          title=event["title"],
+          date_str=event["date_str"],
+          time_str=event["time_str"],
+          location=event["location"],
+          source_url=event["url"],
+      )
+      if success:
+        notified_stages[event_id].add(stage_to_send)
+        print(
+            f"✅ [{stage_to_send}] Benachrichtigung gesendet für:"
+            f" {event['title']}",
+            flush=True,
+        )
+      else:
+        print(
+            f"❌ Fehler beim Senden an Discord Webhook für: {event['title']}",
+            flush=True,
+        )
   # Normaler Live-Betrieb (nach dem Test wieder einkommentieren):
   # today = datetime.now().date()
 
