@@ -9,7 +9,7 @@ import requests
 load_dotenv()
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# Speichert bereits gesendete Erinnerungsstufen: {"event_id": {"1_week", "1_day", "today"}}
+# Speichert gesendete Stufen pro Event: {"event_id": {"1_week", "1_day", "today"}}
 notified_stages = {}
 
 
@@ -42,8 +42,7 @@ def send_discord_reminder(
   return res.status_code in [200, 204]
 
 
-
-# --- SCRAPER 1: Flohmaxx (Flexibler Container-Scraper) ---
+# --- SCRAPER 1: Flohmaxx (Text-Normalisierung) ---
 def scrape_flohmaxx():
   events = []
   url = "https://flohmaxx.de/flohmarkt/"
@@ -60,55 +59,36 @@ def scrape_flohmaxx():
     soup = bs4.BeautifulSoup(res.text, "html.parser")
     current_year = datetime.now().year
 
-    # Sucht alle HTML-Elemente, die das Wort "oldenburg" enthalten
-    containers = soup.find_all(
-        lambda tag: tag.name in ["div", "tr", "li", "p"]
-        and "oldenburg" in tag.get_text().lower()
+    # Entfernt Umbrüche/HTML-Lücken für robuste Regex-Erkennung
+    clean_text = re.sub(r"\s+", " ", soup.get_text())
+
+    pattern = re.compile(
+        r"((?:Sa|So|Mo|Di|Mi|Do|Fr)\.?,?\s*\d{2}\.\d{2}\.?)\s+OLDENBURG\s+(.*?)\s+(\d{2}\s+bis\s+\d{2}\s+Uhr)",
+        re.IGNORECASE,
     )
-    print(
-        f"🔍 [Debug] Oldenburg-Elemente gefunden: {len(containers)}",
-        flush=True,
-    )
+    matches = pattern.findall(clean_text)
 
-    for container in containers:
-      text = container.get_text(separator=" ", strip=True)
-
-      # Liest Muster wie "Sa., 12.09. OLDENBURG Freigelände Weser-Ems-Hallen 08 bis 14 Uhr" aus
-      match = re.search(
-          r"(Sa\.|So\.|Mo\.|Di\.|Mi\.|Do\.|Fr\.),?\s*(\d{2}\.\d{2}\.?)\s+OLDENBURG\s+(.*?)\s+(\d{2}\s+bis\s+\d{2}\s+Uhr)",
-          text,
-          re.IGNORECASE,
-      )
-
-      if match:
-        day_name, date_str, location, time_raw = match.groups()
-        day, month = map(int, date_str.strip(".").split("."))
+    for date_raw, location, time_raw in matches:
+      date_match = re.search(r"(\d{2})\.(\d{2})\.", date_raw)
+      if date_match:
+        day, month = map(int, date_match.groups())
         event_date = datetime(current_year, month, day).date()
         clean_location = location.strip()
-
         event_id = f"flohmaxx_{event_date}_{clean_location}"
 
-        # Verhindert Mehrfachtreffer durch verschachtelte HTML-Tags
         if not any(e["id"] == event_id for e in events):
-          event = {
+          events.append({
               "id": event_id,
               "title": f"Flohmarkt ({clean_location})",
               "date": event_date,
-              "date_str": f"{day_name} {date_str}",
+              "date_str": date_raw,
               "time_str": time_raw,
               "location": f"Oldenburg - {clean_location}",
               "url": url,
-          }
-          events.append(event)
-          print(
-              f"🎯 [Debug] Event erkannt: {clean_location} am {event_date}",
-              flush=True,
-          )
-
+          })
   except Exception as e:
     print(f"❌ Fehler bei Flohmaxx: {e}", flush=True)
 
-  print(f"📊 [Debug] Flohmaxx Gesamt-Treffer: {len(events)}", flush=True)
   return events
 
 
@@ -117,17 +97,26 @@ def scrape_schlossfloh():
   events = []
   url = "https://www.schlossfloh.de/termine-marktzeiten/6-schlossfloh-rastede-termine-2020.html"
   try:
-    res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+    res = requests.get(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            )
+        },
+        timeout=10,
+    )
     soup = bs4.BeautifulSoup(res.text, "html.parser")
     pattern = re.compile(r"(\d{2}\.\d{2}\.\d{4})", re.IGNORECASE)
     matches = pattern.findall(soup.get_text())
 
-    for date_str in matches:
+    for date_str in set(matches):
       day, month, year = map(int, date_str.split("."))
       event_date = datetime(year, month, day).date()
+      event_id = f"schlossfloh_{event_date}"
 
       events.append({
-          "id": f"schlossfloh_{event_date}",
+          "id": event_id,
           "title": "Schlossfloh Rastede",
           "date": event_date,
           "date_str": date_str,
@@ -143,13 +132,13 @@ def scrape_schlossfloh():
 
 # --- ZENTRALER ERINNERUNGS-CHECK ---
 def check_all_sources_and_notify():
-  # Normaler Live-Betrieb:
+  # Live-Betrieb (Aktiv):
   #today = datetime.now().date()
 
-  # Test-Betrieb (Einkommentieren, um den 11.09.2026 zu simulieren):
-  today = datetime(2026, 9, 11).date()
+  # Zum Testen des 12.09.2026 den 11.09.2026 simulieren:
+   today = datetime(2026, 9, 11).date()
 
-  print(f"🔎 Starte Prüfung für heute ({today})...", flush=True)
+  print(f"🔎 Starte Prüfung für Datum: {today}...", flush=True)
 
   all_events = []
   all_events.extend(scrape_flohmaxx())
