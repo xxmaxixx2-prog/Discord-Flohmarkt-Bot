@@ -42,50 +42,68 @@ def send_discord_reminder(
   return res.status_code in [200, 204]
 
 
-# --- SCRAPER 1: Flohmaxx (mit Debug-Ausgaben) ---
+
+# --- SCRAPER 1: Flohmaxx (Flexibler Container-Scraper) ---
 def scrape_flohmaxx():
   events = []
   url = "https://flohmaxx.de/flohmarkt/"
   try:
-    res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+    res = requests.get(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            )
+        },
+        timeout=10,
+    )
     soup = bs4.BeautifulSoup(res.text, "html.parser")
-    rows = soup.find_all("tr")
     current_year = datetime.now().year
 
-    print(f"🔍 [Debug] Tabellenzeilen gefunden: {len(rows)}", flush=True)
+    # Sucht alle HTML-Elemente, die das Wort "oldenburg" enthalten
+    containers = soup.find_all(
+        lambda tag: tag.name in ["div", "tr", "li", "p"]
+        and "oldenburg" in tag.get_text().lower()
+    )
+    print(
+        f"🔍 [Debug] Oldenburg-Elemente gefunden: {len(containers)}",
+        flush=True,
+    )
 
-    for row in rows:
-      text = row.get_text(separator=" ", strip=True)
-      if "oldenburg" in text.lower():
-        cols = row.find_all("td")
-        if len(cols) >= 3:
-          date_raw = cols[0].get_text(strip=True)
-          location_raw = cols[1].get_text(separator=" ", strip=True)
-          time_raw = cols[2].get_text(strip=True)
+    for container in containers:
+      text = container.get_text(separator=" ", strip=True)
 
-          date_match = re.search(r"(\d{2})\.(\d{2})\.", date_raw)
-          if date_match:
-            day, month = map(int, date_match.groups())
-            event_date = datetime(current_year, month, day).date()
+      # Liest Muster wie "Sa., 12.09. OLDENBURG Freigelände Weser-Ems-Hallen 08 bis 14 Uhr" aus
+      match = re.search(
+          r"(Sa\.|So\.|Mo\.|Di\.|Mi\.|Do\.|Fr\.),?\s*(\d{2}\.\d{2}\.?)\s+OLDENBURG\s+(.*?)\s+(\d{2}\s+bis\s+\d{2}\s+Uhr)",
+          text,
+          re.IGNORECASE,
+      )
 
-            clean_location = re.sub(
-                r"^OLDENBURG\s*", "", location_raw, flags=re.IGNORECASE
-            )
+      if match:
+        day_name, date_str, location, time_raw = match.groups()
+        day, month = map(int, date_str.strip(".").split("."))
+        event_date = datetime(current_year, month, day).date()
+        clean_location = location.strip()
 
-            event = {
-                "id": f"flohmaxx_{event_date}_{clean_location}",
-                "title": f"Flohmarkt ({clean_location})",
-                "date": event_date,
-                "date_str": date_raw,
-                "time_str": time_raw,
-                "location": f"Oldenburg - {clean_location}",
-                "url": url,
-            }
-            events.append(event)
-            print(
-                f"🎯 [Debug] Event erkannt: {event['title']} am {event_date}",
-                flush=True,
-            )
+        event_id = f"flohmaxx_{event_date}_{clean_location}"
+
+        # Verhindert Mehrfachtreffer durch verschachtelte HTML-Tags
+        if not any(e["id"] == event_id for e in events):
+          event = {
+              "id": event_id,
+              "title": f"Flohmarkt ({clean_location})",
+              "date": event_date,
+              "date_str": f"{day_name} {date_str}",
+              "time_str": time_raw,
+              "location": f"Oldenburg - {clean_location}",
+              "url": url,
+          }
+          events.append(event)
+          print(
+              f"🎯 [Debug] Event erkannt: {clean_location} am {event_date}",
+              flush=True,
+          )
 
   except Exception as e:
     print(f"❌ Fehler bei Flohmaxx: {e}", flush=True)
