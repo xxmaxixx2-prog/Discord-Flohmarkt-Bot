@@ -9,7 +9,6 @@ import requests
 load_dotenv()
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
-# Speichert gesendete Stufen pro Event: {"event_id": {"1_week", "1_day", "today"}}
 notified_stages = {}
 
 
@@ -17,9 +16,9 @@ def send_discord_reminder(
     stage_name, title, date_str, time_str, location, source_url
 ):
   stage_config = {
-      "1_week": {"prefix": "📅 In 1 Woche: ", "color": 3447003},  # Blau
-      "1_day": {"prefix": "⏰ Morgen: ", "color": 15105570},  # Orange
-      "today": {"prefix": "🚨 HEUTE: ", "color": 15158332},  # Rot
+      "1_week": {"prefix": "📅 In 1 Woche: ", "color": 3447003},
+      "1_day": {"prefix": "⏰ Morgen: ", "color": 15105570},
+      "today": {"prefix": "🚨 HEUTE: ", "color": 15158332},
   }
 
   config = stage_config.get(
@@ -42,7 +41,6 @@ def send_discord_reminder(
   return res.status_code in [200, 204]
 
 
-# --- SCRAPER 1: Flohmaxx (Text-Normalisierung) ---
 def scrape_flohmaxx():
   events = []
   url = "https://flohmaxx.de/flohmarkt/"
@@ -51,7 +49,8 @@ def scrape_flohmaxx():
         url,
         headers={
             "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                " AppleWebKit/537.36"
             )
         },
         timeout=10,
@@ -59,7 +58,6 @@ def scrape_flohmaxx():
     soup = bs4.BeautifulSoup(res.text, "html.parser")
     current_year = datetime.now().year
 
-    # Entfernt Umbrüche/HTML-Lücken für robuste Regex-Erkennung
     clean_text = re.sub(r"\s+", " ", soup.get_text())
 
     pattern = re.compile(
@@ -92,7 +90,6 @@ def scrape_flohmaxx():
   return events
 
 
-# --- SCRAPER 2: Schlossfloh Rastede ---
 def scrape_schlossfloh():
   events = []
   url = "https://www.schlossfloh.de/termine-marktzeiten/6-schlossfloh-rastede-termine-2020.html"
@@ -101,7 +98,8 @@ def scrape_schlossfloh():
         url,
         headers={
             "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                " AppleWebKit/537.36"
             )
         },
         timeout=10,
@@ -130,13 +128,12 @@ def scrape_schlossfloh():
   return events
 
 
-# --- ZENTRALER ERINNERUNGS-CHECK ---
 def check_all_sources_and_notify():
-  # Live-Betrieb (Aktiv):
-  #today = datetime.now().date()
+  # Normaler Live-Betrieb (nach dem Test wieder einkommentieren):
+  # today = datetime.now().date()
 
-  # Zum Testen des 12.09.2026 den 11.09.2026 simulieren:
-   today = datetime(2026, 9, 11).date()
+  # TEST-DATUM AKTIV (Simuliert Freitag, 11.09.2026):
+  today = datetime(2026, 9, 11).date()
 
   print(f"🔎 Starte Prüfung für Datum: {today}...", flush=True)
 
