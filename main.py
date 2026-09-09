@@ -15,6 +15,14 @@ notified_stages = {}
 def send_discord_reminder(
     stage_name, title, date_str, time_str, location, source_url
 ):
+  if not WEBHOOK_URL:
+    print(
+        "❌ FEHLER: Keine WEBHOOK_URL in den Umgebungsvariablen/der .env"
+        " gefunden!",
+        flush=True,
+    )
+    return False
+
   stage_config = {
       "1_week": {"prefix": "📅 In 1 Woche: ", "color": 3447003},
       "1_day": {"prefix": "⏰ Morgen: ", "color": 15105570},
